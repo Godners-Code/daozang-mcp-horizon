@@ -1,0 +1,16 @@
+# 构建期输入（重建分片时本地自备，不随仓库发布）
+data/*.parquet
+
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.DS_Store
+Thumbs.db
+.horizon-probe/
+
+# 说明：data/shards/ 下的 *.parquet 是**必须**随仓库发布的构建产物。
+# Horizon 的文件系统是 ephemeral 的，运行时无法再下载 1.1 GB 语料，
+# 因此分片必须固化进构建产物。切勿把 data/shards/ 加入忽略。

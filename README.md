@@ -1,0 +1,146 @@
+# DaoZang Reasoner MCP — Prefect Horizon 在线版
+
+《中华道藏》全文的**可溯源检索 + 原文取证** MCP 服务器，为 [Prefect Horizon](https://horizon.prefect.io)
+的托管环境（FastMCP / HTTP MCP）而构建。
+
+- 语料：**3,152 篇**经文、**285,117 个文本块**
+- 引擎：关键词（IDF）检索 + Markdown 原文精确回定位
+- 端点：`https://<server-name>.fastmcp.app/mcp`
+
+---
+
+## 为什么是「关键词引擎」而不是向量检索？
+
+这不是偷懒，而是被 Horizon 的运行时限倒推出来的结论。
+
+| Horizon 限制 | 值 | 对本服务的含义 |
+|---|---|---|
+| 内存配额 | **1024 MB**（所有档位统一，不可调） | bge-m3 ONNX 量化会话约 **570 MB**，加上向量矩阵必然 OOM |
+| 请求超时 | **170 s** | 冷启动必须在此窗口内完成 |
+| 本地文件系统 | **Ephemeral**（跨实例/重新部署不保留） | 无法依赖运行时下载语料 |
+| 构建产物 | = 仓库内容 | 索引必须固化进仓库 |
+
+进一步核实（2026-10-12）：
+
+- 285,117 × 1024 维 **float32 向量矩阵本身 = 1113.7 MiB**，已超过 1024 MB 配额；
+  实测（Python 3.13 + numpy）仅该矩阵就占 **+1113.8 MB** 常驻。
+- 降精度到 int8 后向量为 278 MiB，但 ONNX 会话仍需约 570 MB，
+  合计仍逼近/超过上限（详见 `docs/HORIZON.md`）。
+- 远程嵌入 API 亦不可用：Hugging Face Inference Providers 返回
+  **402（无可用额度）**，且账户非 PRO。
+- **换向量数据库引擎解决不了这个问题**——瓶颈是「查询向量从哪来」（嵌入模型的内存），
+  而不是「向量存哪里」。任何向量库都需要查询向量，而嵌入模型在 1024 MB 里放不下。
+
+因此在线版只提供关键词检索 + 原文提取，即 `dao-zang` skill 的**默认 `text` 引擎**行为。
+需要语义检索时，请在本地用完整的 MCPB / stdio 版（有充足内存）。
+
+---
+
+## 数据格式
+
+数据来自 `Godners/DaoZang`，已重新拆分为 **13 个 parquet 分片**，每个 **≤ 92.9 MiB**，
+全部在 GitHub 100 MiB 单文件硬上限内（**无需 Git LFS**）：
+
+```
+data/shards/
+  chunks-01.parquet … chunks-13.parquet   每片 23,383 行（末片 4,521 行）
+  manifest.json                            行数、字节数、SHA-256、行区间
+```
+
+列与原始数据集一致：`source` / `title` / `chunk_index` / `chars` / `text` / `embedding(1024×float32)`。
+
+| 项 | 值 |
+|---|---|
+| 行数 | 285,117（= 285,117 行校验通过） |
+| 分片数 | 13 |
+| 合计 | 1,126.2 MiB（1.10 GiB），zstd 压缩 |
+| 最大分片 | 92.82 MiB |
+| 原始（未拆） | 6 片 × 约 217 MB，均超 100 MiB 无法入库 |
+
+**⚠️ 运行时只读非向量列。** 向量列合计约 1.17 GB，而 Horizon 只有 1024 MB 内存，
+因此 `daozang/store.py` 用 `pq.read_table(..., columns=[source,title,chunk_index,chars,text])`
+做**列裁剪**，向量留在磁盘上不加载。
+
+**运行时内存策略**：逐片流式读取 → 正文编码进一个 `bytearray`（222 MiB）→
+建立偏移表；检索在拼接后的 UTF-8 字节流上做子串扫描（C 实现），
+命中偏移经二分映射回行号，只对最终 top-k 解码文本。
+
+实测（Python 3.13 + pyarrow）：
+
+| 指标 | 值 |
+|---|---|
+| 加载耗时 | 2.2 – 2.8 s |
+| 加载期峰值 RSS | **669 MB** |
+| 稳态常驻 | **442 MB** |
+| 单次检索 | 56 – 130 ms（常见词）；高频词「黄庭」130 ms |
+| Horizon 上限 | 1024 MB |
+
+重建分片：
+
+```bash
+python tools/split_parquet.py /path/to/parquet_dir
+```
+
+
+---
+
+## 本地运行
+
+```bash
+pip install -r requirements.txt
+
+# HTTP（默认 127.0.0.1:7860，端点 /mcp）
+python server.py
+
+# stdio
+MCP_TRANSPORT=stdio python server.py
+
+# 检查入口能否被 Horizon 识别
+fastmcp inspect server.py:mcp --json
+```
+
+### 环境变量
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `DAOZANG_ROOT` | 本文件所在目录 | 索引与 `markdowns/` 的根目录 |
+| `MCP_TRANSPORT` | `http` | `http` 或 `stdio` |
+| `HOST` / `PORT` | `127.0.0.1` / `7860` | HTTP 监听地址 |
+
+---
+
+## 工具
+
+| 工具 | 用途 |
+|---|---|
+| `daozang_protocol` | 道藏考据方法论（先读这个） |
+| `daozang_status` | 馆藏状态：块数、篇数、正文规模 |
+| `list_sources` | 按文件名关键词列经目，用于缩小范围 |
+| `search_daozang` | 关键词（IDF）检索，返回相关度 / 源文件 / 块序号 |
+| `get_original` | 把命中块还原成**带行号**的 Markdown 原文，`⟦…⟧` 标出命中范围 |
+| `read_source` | 读取某篇经文全文 |
+
+推荐工作流：`daozang_protocol` → `list_sources` → `search_daozang` → `get_original`。
+
+> 检索用**专名或原句短语**（如「周天火候」「天地悉皆归」），不要用自然语言问句——
+> 本引擎是关键词匹配，不是语义匹配。
+
+---
+
+## 部署到 Horizon
+
+1. 把本仓库推到 GitHub（新建仓库）。
+2. 在 [horizon.prefect.io](https://horizon.prefect.io) 连接 GitHub 并选择该仓库。
+3. 服务器配置：
+   - **入口点**：`server.py:mcp`
+   - **依赖文件**：`requirements.txt`（自动探测）
+   - **服务器名称**：决定 URL，如 `daozang-reasoner` → `https://daozang-reasoner.fastmcp.app/mcp`
+4. 点 **Deploy Server**，等构建完成。
+5. 客户端连接时需带 Horizon 凭据（Horizon 认证默认开启；免费层无法关闭）。
+
+---
+
+## 许可证与数据来源
+
+经文数据来自 Hugging Face 数据集 [`Godners/DaoZang`](https://huggingface.co/datasets/Godners/DaoZang)，
+仅供研究与文献检索使用。
