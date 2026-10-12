@@ -6,6 +6,7 @@
 - 语料：**3,152 篇**经文、**285,117 个文本块**
 - 引擎：关键词（IDF）检索 + Markdown 原文精确回定位
 - 端点：`https://<server-name>.fastmcp.app/mcp`
+- 许可证：**MIT**（见 [LICENSE](LICENSE)；语料数据的来源与条款见文末）
 
 ---
 
@@ -81,6 +82,34 @@ data/shards/
 python tools/split_parquet.py /path/to/parquet_dir
 ```
 
+### 推送 `markdowns/` 原文（多线程）
+
+`markdowns/`（3,152 篇）必须随仓库发布：`get_original` / `read_source` 要在运行时
+回到 Markdown 原文里做定位，`daozang/store.py` 从 `<root>/markdowns/` 读取。
+
+`git push` 无法并行（同分支并发 push 会 non-fast-forward），因此原文用
+**GitHub Git Data API + 线程池**推送：
+
+```bash
+export GH_PAT=github_pat_xxx        # 或写入本地 .env（已 gitignore）
+tools/push_markdowns.sh --workers 48 --chunk 500 --interval 60
+```
+
+实测（本机 → 代理 → api.github.com，真实 markdown 样本，各并发档用互不重叠文件
+以排除 GitHub 按 blob SHA 去重带来的假加速）：
+
+| 并发 | 吞吐 |
+|---|---|
+| 1 | 0.67 文件/s |
+| 16 | 7.97 文件/s |
+| 32 | 12.58 文件/s |
+| **48** | **13.88 文件/s（饱和点）** |
+| 64 | 13.98 文件/s |
+
+脚本特性：每 60 秒输出一次瞬时/平均速度与 ETA、每 500 文件一个提交、
+逐文件指数退避重试、checkpoint 落盘可断点续传、结束时自动
+`git fetch` + `git reset --hard origin/main` 对齐本地分支。
+
 
 ---
 
@@ -95,8 +124,8 @@ python server.py
 # stdio
 MCP_TRANSPORT=stdio python server.py
 
-# 检查入口能否被 Horizon 识别
-fastmcp inspect server.py:mcp --json
+# 检查入口能否被 Horizon 识别（注意：没有 --json，用 --format）
+fastmcp inspect server.py:mcp --format fastmcp
 ```
 
 ### 环境变量
@@ -142,5 +171,15 @@ fastmcp inspect server.py:mcp --json
 
 ## 许可证与数据来源
 
-经文数据来自 Hugging Face 数据集 [`Godners/DaoZang`](https://huggingface.co/datasets/Godners/DaoZang)，
-仅供研究与文献检索使用。
+**本仓库的代码以 MIT 协议开源**，全文见 [LICENSE](LICENSE)：
+
+> MIT License — Copyright (c) 2026 Godners-Code
+> 允许任意使用、复制、修改、合并、发布、分发、再授权与销售，
+> 唯一要求是保留版权声明与许可声明；软件按「原样」提供，不含任何担保。
+
+**语料数据的来源与条款另计。** 经文原文与向量数据来自 Hugging Face 数据集
+[`Godners/DaoZang`](https://huggingface.co/datasets/Godners/DaoZang)，
+`markdowns/` 与 `data/shards/` 均由该数据集派生，**不适用上述 MIT 条款**，
+请遵循数据集自身的许可说明，仅供研究与文献检索使用。
+
+即：**代码 MIT，语料从其原许可**。若需将语料用于商业用途，请先确认原数据集授权。
