@@ -10,6 +10,8 @@ venv/
 .DS_Store
 Thumbs.db
 .horizon-probe/
+.tmp/
+.push-state/
 
 # 说明：data/shards/ 下的 *.parquet 是**必须**随仓库发布的构建产物。
 # Horizon 的文件系统是 ephemeral 的，运行时无法再下载 1.1 GB 语料，
