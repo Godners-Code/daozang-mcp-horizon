@@ -10,6 +10,23 @@
 
 ---
 
+## 在线使用
+
+已部署在 Prefect Horizon，**无需本地安装**：
+
+| 项 | 值 |
+|---|---|
+| 端点 | `https://daozang-reasoner.fastmcp.app/mcp` |
+| 传输 | Streamable HTTP |
+| 认证 | `Authorization: Bearer <HORIZON_API_KEY>`（无认证返回 401） |
+
+客户端配置（Claude Desktop / Claude Code / Cursor / Python / curl）、6 个工具的参数、
+检索技巧、冷启动与限额、故障排查 → **见 [USAGE.md](USAGE.md)**。
+
+> 首次调用含冷启动（加载索引约 40–60 s），之后单次 1.7–2.1 s。
+
+---
+
 ## 为什么是「关键词引擎」而不是向量检索？
 
 这不是偷懒，而是被 Horizon 的运行时限倒推出来的结论。
@@ -158,14 +175,30 @@ fastmcp inspect server.py:mcp --format fastmcp
 
 ## 部署到 Horizon
 
-1. 把本仓库推到 GitHub（新建仓库）。
-2. 在 [horizon.prefect.io](https://horizon.prefect.io) 连接 GitHub 并选择该仓库。
-3. 服务器配置：
-   - **入口点**：`server.py:mcp`
-   - **依赖文件**：`requirements.txt`（自动探测）
-   - **服务器名称**：决定 URL，如 `daozang-reasoner` → `https://daozang-reasoner.fastmcp.app/mcp`
-4. 点 **Deploy Server**，等构建完成。
-5. 客户端连接时需带 Horizon 凭据（Horizon 认证默认开启；免费层无法关闭）。
+本仓库**已经部署上线**，端点 `https://daozang-reasoner.fastmcp.app/mcp`。
+重新部署或首次部署：
+
+```bash
+export HORIZON_API_KEY=fmcp_你的密钥
+
+# 创建版本 → 构建 → 部署（每 5 秒打印构建状态与日志最新一行）
+python tools/deploy_horizon.py --repo Godners-Code/daozang-mcp-horizon \
+  --branch main --entrypoint server.py:mcp --dependency requirements.txt \
+  --interval 5 --poll 180
+
+# 端到端验证：断言 285,117 块 / 3,152 篇，并调用全部 6 个工具
+python tools/verify_horizon.py
+```
+
+要点：
+
+- **构建 `ready` ≠ 已上线**。之后还有 `deploying` 阶段（实测约 1 分 47 秒），
+  期间访问返回 `404`。以 `GET /deployments` 的 `succeeded` 为准。
+- 入口点 `server.py:mcp`；依赖文件 `requirements.txt`。
+- 服务器名（slug）决定 URL，如 `daozang-reasoner` → `https://daozang-reasoner.fastmcp.app/mcp`。
+- 客户端连接需带 Horizon 凭据（Horizon 认证默认开启，**免费层无法关闭**）。
+
+更完整的客户端配置与排错见 [USAGE.md](USAGE.md)。
 
 ---
 

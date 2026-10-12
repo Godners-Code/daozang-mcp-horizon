@@ -69,8 +69,6 @@ def show(tag, code, payload):
 
 
 def main():
-    if not KEY:
-        sys.exit("缺少环境变量 HORIZON_API_KEY（本仓库为公开仓库，密钥不写入代码）")
     ap = argparse.ArgumentParser()
     ap.add_argument("--slug", default="daozang-reasoner",
                     help="项目 slug，决定 serving 主机名（6-32 位小写字母/数字/连字符）")
@@ -85,7 +83,12 @@ def main():
                             "Markdown 原文回定位（带行号）。")
     ap.add_argument("--no-deploy", action="store_true")
     ap.add_argument("--poll", type=int, default=60, help="构建轮询次数上限")
+    ap.add_argument("--interval", type=float, default=5.0,
+                    help="构建轮询间隔秒数（默认 5；调小可获得更密的进度输出）")
     args = ap.parse_args()
+
+    if not KEY:
+        sys.exit("缺少环境变量 HORIZON_API_KEY（本仓库为公开仓库，密钥不写入代码）")
 
     # ---------- 1) 项目 ----------
     code, payload = req("GET", f"/organizations/{ORG}/projects")
@@ -140,18 +143,31 @@ def main():
     vid = payload["id"]
     print(f"  versionId = {vid}  status = {payload.get('status')}")
 
-    # ---------- 4) 轮询构建 ----------
+    # ---------- 4) 轮询构建（每次都带构建日志最新一行，等待期间也有进展可见） ----------
     status = payload.get("status")
+    t0 = time.time()
+    last_msg = None
     for k in range(args.poll):
         if status in ("ready", "failed"):
             break
-        time.sleep(5)
+        time.sleep(args.interval)
         code, payload = req("GET", f"/organizations/{ORG}/projects/{pid}/versions/{vid}")
         if code != 200:
             show("轮询", code, payload)
             break
         status = payload.get("status")
-        print(f"  [{k + 1}] status = {status}")
+
+        line = ""
+        lcode, logs = req("GET", f"/organizations/{ORG}/projects/{pid}/versions/{vid}/logs")
+        if lcode == 200:
+            items = logs.get("items") if isinstance(logs, dict) else None
+            if items:
+                msg = str((items[-1] or {}).get("message", "")).strip()
+                if msg and msg != last_msg:
+                    last_msg = msg
+                    line = "  ← " + msg[:110]
+        print(f"  [{k + 1:3d}] {time.time() - t0:6.1f}s  status={status}{line}", flush=True)
+    print(f"  构建结束：status={status}  用时 {time.time() - t0:.1f}s", flush=True)
 
     # ---------- 5) 构建日志 ----------
     code, logs = req("GET", f"/organizations/{ORG}/projects/{pid}/versions/{vid}/logs")
@@ -160,13 +176,30 @@ def main():
         print("\n===== 构建日志（末尾 4000 字符）=====")
         print(txt[-4000:])
 
+    # ---------- 5.5) 等待部署就绪（构建 ready ≠ 已上线，还要 provisioning） ----------
+    dep_status = None
+    if not args.no_deploy:
+        d0 = time.time()
+        for k in range(args.poll):
+            code, dl = req("GET", f"/organizations/{ORG}/projects/{pid}/deployments")
+            dep = (dl or {}).get("items", [{}])[0] if isinstance(dl, dict) else {}
+            dep_status = dep.get("status")
+            print(f"  [部署 {k + 1:3d}] {time.time() - d0:6.1f}s  status={dep_status}"
+                  + (f"  error={dep['error']}" if dep.get("error") else ""), flush=True)
+            if dep_status in ("succeeded", "deployed", "active", "failed", "error"):
+                break
+            time.sleep(args.interval)
+        print(f"  部署结束：status={dep_status}  用时 {time.time() - d0:.1f}s", flush=True)
+
     # ---------- 6) serving URL ----------
     code, payload = req("GET", f"/organizations/{ORG}/projects/{pid}/targets")
     for t in (payload or {}).get("items", []):
-        print(f"\ntarget {t.get('slug')}: status={t.get('status')} "
-              f"url={t.get('url') or t.get('servingUrl')}")
-    print(f"\n最终：version status = {status}")
-    print(f"端点应为：https://{args.slug}.fastmcp.app/mcp")
+        print(f"\ntarget {t.get('slug')}: currentDeploymentId={t.get('currentDeploymentId')} "
+              f"url={t.get('servingUrl') or t.get('url')}")
+    print(f"\n最终：version status = {status} | deployment status = {dep_status}")
+    print(f"端点：https://{args.slug}.fastmcp.app/mcp")
+    if dep_status in ("succeeded", "deployed", "active"):
+        print("提示：用 tools/verify_horizon.py 做一次端到端验证（首次调用含冷启动，约 40-60s）。")
 
 
 if __name__ == "__main__":

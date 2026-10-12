@@ -22,7 +22,7 @@
 用法：
     export GH_PAT=github_pat_xxx
     python tools/push_markdowns_mt.py                       # 默认 markdowns/，48 线程
-    python tools/push_markdowns_mt.py --workers 32 --chunk 500 --interval 60
+    python tools/push_markdowns_mt.py --workers 32 --chunk 500 --interval 15
     python tools/push_markdowns_mt.py --dry-run
 """
 from __future__ import annotations
@@ -220,8 +220,8 @@ def main():
                     help="并发线程数（实测 48 为饱和点）")
     ap.add_argument("--chunk", type=int, default=500,
                     help="每多少文件打一个提交（便于断点续传）")
-    ap.add_argument("--interval", type=int, default=60,
-                    help="每隔多少秒输出一次上传速度（默认 60）")
+    ap.add_argument("--interval", type=int, default=15,
+                    help="每隔多少秒输出一次上传速度（默认 15）")
     ap.add_argument("--message", default="markdown sources")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-resync", action="store_true",
