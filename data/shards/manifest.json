@@ -1,0 +1,108 @@
+{
+  "nRows": 285117,
+  "nShards": 13,
+  "compression": "zstd",
+  "columns": [
+    "source",
+    "title",
+    "chunk_index",
+    "chars",
+    "text",
+    "embedding"
+  ],
+  "embeddingDim": 1024,
+  "totalBytes": 1180949779,
+  "shards": [
+    {
+      "name": "chunks-01.parquet",
+      "rowStart": 0,
+      "rows": 23383,
+      "bytes": 96647452,
+      "sha256": "45fb73a6fed2af5369c35ef3034714c41f6e1f1ecd16154ae1aa3750c490c895"
+    },
+    {
+      "name": "chunks-02.parquet",
+      "rowStart": 23383,
+      "rows": 23383,
+      "bytes": 96526220,
+      "sha256": "78a508a3fcf58100483bd4ea09aa2fcbe866dc2a6deaa9bdd21414357ec30cdd"
+    },
+    {
+      "name": "chunks-03.parquet",
+      "rowStart": 46766,
+      "rows": 23383,
+      "bytes": 97320165,
+      "sha256": "c151882d1b84c00312e8bd794c0b2a46a3b1a602883eeec6830f016692fbe337"
+    },
+    {
+      "name": "chunks-04.parquet",
+      "rowStart": 70149,
+      "rows": 23383,
+      "bytes": 96932673,
+      "sha256": "9f0c5b455a38c7b7f0fb7d98d1a59a81df2c10e9d2c20ecc6108d159bbbc903c"
+    },
+    {
+      "name": "chunks-05.parquet",
+      "rowStart": 93532,
+      "rows": 23383,
+      "bytes": 96894427,
+      "sha256": "dd74ca9b30ec1d49e656c9f2ff9a82ba90b2f1bb014bf373dc4af4006e4412d7"
+    },
+    {
+      "name": "chunks-06.parquet",
+      "rowStart": 116915,
+      "rows": 23383,
+      "bytes": 96685711,
+      "sha256": "1d6aab7ac2cfa8f70e26382d700abd7e41080c6f9337879efa66be72da713d18"
+    },
+    {
+      "name": "chunks-07.parquet",
+      "rowStart": 140298,
+      "rows": 23383,
+      "bytes": 96007319,
+      "sha256": "e38caf50de7ea36a0dd4ffda45540bb248bc38a52b2d95ed3683ae364e970861"
+    },
+    {
+      "name": "chunks-08.parquet",
+      "rowStart": 163681,
+      "rows": 23383,
+      "bytes": 96850898,
+      "sha256": "fdc7672c77737dc1db1c396284d907ec37ac79aa22ac05bd2e77dff5e7837a3b"
+    },
+    {
+      "name": "chunks-09.parquet",
+      "rowStart": 187064,
+      "rows": 23383,
+      "bytes": 96960604,
+      "sha256": "88bc171be3891599010656ee2bb0f03758942ca77da85b71c43dda452fe483fd"
+    },
+    {
+      "name": "chunks-10.parquet",
+      "rowStart": 210447,
+      "rows": 23383,
+      "bytes": 96866079,
+      "sha256": "479c8ec05e268af5a7c3878bc768b698e70aa9657b1cbc488ff40953ac71ccb3"
+    },
+    {
+      "name": "chunks-11.parquet",
+      "rowStart": 233830,
+      "rows": 23383,
+      "bytes": 97328855,
+      "sha256": "96242073f0c4864d0ac0e25f481b3daa3a88bd3556efb2ccf7065e50dc19db6c"
+    },
+    {
+      "name": "chunks-12.parquet",
+      "rowStart": 257213,
+      "rows": 23383,
+      "bytes": 97159284,
+      "sha256": "359f8dd14b607397173b02327db0f46ff9a358a4a324838727abc4d7390d8d56"
+    },
+    {
+      "name": "chunks-13.parquet",
+      "rowStart": 280596,
+      "rows": 4521,
+      "bytes": 18770092,
+      "sha256": "ebcff84269f7b48a44e0c45ecbd8d841a070afb0ba260a06817a4cbb899795ec"
+    }
+  ]
+}
